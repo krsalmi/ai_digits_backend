@@ -1,5 +1,4 @@
 absl-py==1.4.0
-array-record==0.4.0
 astunparse==1.6.3
 blinker==1.6.2
 cachetools==5.3.1
@@ -56,12 +55,11 @@ scipy==1.11.1
 six==1.16.0
 tensorboard==2.12.3
 tensorboard-data-server==0.7.1
+tensorflow==2.12.0
 tensorflow-datasets==4.9.2
 tensorflow-estimator==2.12.0
 tensorflow-io-gcs-filesystem==0.33.0
-tensorflow-macos==2.12.0
 tensorflow-metadata==1.13.1
-tensorflow-metal==1.0.0
 termcolor==2.3.0
 threadpoolctl==3.2.0
 toml==0.10.2
