@@ -1,6 +1,6 @@
 Flask==2.2.5
 Flask-Cors==4.0.0
-numpy==1.25.2
+numpy==1.21.6
 Pillow==10.0.0
 redis==5.0.0
 tensorflow==2.12.0
