@@ -20,7 +20,8 @@ stop_training_event = threading.Event() # Event that will signal the training pr
 global_model = None
 
 #Connect to an instance of Redis
-redis_conn = redis.StrictRedis(host='localhost', port=6379, db=0)
+redis_url = os.getenv('REDIS_URL')
+redis_conn = redis.StrictRedis.from_url(redis_url)
 redis_conn.set('training_progress', '{}')
 redis_conn.set('model_status', MODEL_CREATION_STATUS[0])
 redis_conn.set('model_accuracy', 0)
