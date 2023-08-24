@@ -10,18 +10,20 @@ from PIL import Image
 import numpy as np
 from digit_trainer import DigitModelTrainer
 
-FRONTEND_URL = "http://localhost:3000"
+FRONTEND_URL = os.getenv('FRONTEND_URL')
 MODEL_FILE = "ai_digits_model.h5"
 MODEL_SCRIPT = "ai_digits.py"
 CUR_FOLDER = "."
 MODEL_CREATION_STATUS = ["not_started", "in_progress", "completed", "interrupted"]
+REDIS_URL = os.getenv('REDIS_URL')
+
 train_model_lock = threading.Lock() #global variable to lock the thread that is training the model, so multiple similar processes won't run at the same time
 stop_training_event = threading.Event() # Event that will signal the training process to stop
 global_model = None
 
 #Connect to an instance of Redis
-redis_url = os.getenv('REDIS_URL')
-redis_conn = redis.StrictRedis.from_url(redis_url)
+
+redis_conn = redis.StrictRedis.from_url(REDIS_URL)
 redis_conn.set('training_progress', '{}')
 redis_conn.set('model_status', MODEL_CREATION_STATUS[0])
 redis_conn.set('model_accuracy', 0)
