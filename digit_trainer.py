@@ -24,10 +24,11 @@ class DigitModelTrainer:
     IMG_WIDTH = 28
     CHANNEL_DIMENSION = 1
     MODEL_FILE = "ai_digits_model.h5"
+    REDIS_URL = os.getenv('REDIS_URL')
 
     def __init__(self):
         # Connect to Redis instance
-        self.redis_conn = redis.StrictRedis(host='localhost', port=6379, db=0)
+        self.redis_conn = redis.StrictRedis.from_url(self.REDIS_URL)
         self.model = None
 
     def load_model(self):
