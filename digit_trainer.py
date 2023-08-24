@@ -37,6 +37,10 @@ class DigitModelTrainer:
         else:
             print("Model file does not exist. Please create the model first.")
 
+    def load_dataset(self):
+        # Load MNIST data
+        (self.X_train, self.y_train), (self.X_test, self.y_test) = keras.datasets.mnist.load_data()
+
 
     def save_epoch_details(self, epoch, logs=None):
         if StopTrainingCallback.training_stopped:
@@ -58,21 +62,18 @@ class DigitModelTrainer:
         # Empty training_progress
         self.redis_conn.set('training_progress', '{}')
 
-        # Load MNIST data
-        (X_train, y_train), (X_test, y_test) = keras.datasets.mnist.load_data()
-
-        num_training_images = X_train.shape[0]
-        num_testing_images = X_test.shape[0]
+        num_training_images = self.X_train.shape[0]
+        num_testing_images = self.X_test.shape[0]
         # Reshape the data and add channel dimension
-        X_train = X_train.reshape(num_training_images, self.IMG_HEIGHT, self.IMG_WIDTH, self.CHANNEL_DIMENSION)
-        X_test= X_test.reshape(num_testing_images, self.IMG_HEIGHT, self.IMG_WIDTH, self.CHANNEL_DIMENSION)
+        self.X_train = self.X_train.reshape(num_training_images, self.IMG_HEIGHT, self.IMG_WIDTH, self.CHANNEL_DIMENSION)
+        self.X_test= self.X_test.reshape(num_testing_images, self.IMG_HEIGHT, self.IMG_WIDTH, self.CHANNEL_DIMENSION)
 
         # Normalize pixel values
-        X_train, X_test = X_train / 255.0, X_test / 255.0
+        self.X_train, self.X_test = self.X_train / 255.0, self.X_test / 255.0
 
         # Create One-hot encode labels.
-        y_train = keras.utils.to_categorical(y_train, self.NUM_CLASSES)
-        y_test = keras.utils.to_categorical(y_test, self.NUM_CLASSES)
+        self.y_train = keras.utils.to_categorical(self.y_train, self.NUM_CLASSES)
+        self.y_test = keras.utils.to_categorical(self.y_test, self.NUM_CLASSES)
 
         # Make model
         # Create a convolutional neural network
@@ -115,10 +116,10 @@ class DigitModelTrainer:
         # Callback which will run 'save_epoch_detail' on each epoch end
         epoch_callback = keras.callbacks.LambdaCallback(on_epoch_end=self.save_epoch_details)
 
-        self.model.fit(X_train, y_train, epochs=10, callbacks=[epoch_callback, stop_training_callback])
+        self.model.fit(self.X_train, self.y_train, epochs=10, callbacks=[epoch_callback, stop_training_callback])
 
         # Evaluate neural network performance
-        _, accuracy = self.model.evaluate(X_test,  y_test, verbose=2)
+        _, accuracy = self.model.evaluate(self.X_test,  self.y_test, verbose=2)
         self.model.save(self.MODEL_FILE)
 
         return self.model, accuracy

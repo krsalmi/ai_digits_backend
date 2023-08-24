@@ -36,6 +36,8 @@ CORS(app, origins=[FRONTEND_URL])
 trainer = DigitModelTrainer()
 # Load model
 trainer.load_model()
+#Load dataset upon starting, just in case it is needed
+trainer.load_dataset()
 
 @app.route("/")
 def home():
