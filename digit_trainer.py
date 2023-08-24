@@ -3,8 +3,6 @@ import redis
 import json
 import os
 import numpy as np
-from matplotlib import pyplot
-
 
 class StopTrainingCallback(keras.callbacks.Callback):
     training_stopped = False
