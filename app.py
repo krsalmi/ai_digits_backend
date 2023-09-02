@@ -92,10 +92,16 @@ def retrain_model():
 
 @app.route('/api/stop_training/', methods=['GET'])
 def stop_training():
-    print("Gonna stop training...")
     global stop_training_event
+    # Check if training is in progress
+    current_status = redis_conn.get('model_status').decode("utf-8")
+    if current_status != MODEL_CREATION_STATUS[1]: # If not "in_progress"
+        return jsonify({'message': 'Training not in progress.'})
+    
+    print("Gonna stop training...")
     stop_training_event.set()
     return jsonify({'message': 'Stop signal sent.'})
+
     
 @app.route('/api/check_model_status/', methods=['GET'])
 def check_model_status():
@@ -132,6 +138,7 @@ def create_model_file():
             trainer.load_model()
     finally:
         train_model_lock.release()
+        redis_conn.set('training_progress', '{}')  # Reset training progress
 
 
 if __name__=='__main__':

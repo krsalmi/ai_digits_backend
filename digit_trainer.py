@@ -44,8 +44,7 @@ class DigitModelTrainer:
 
     def save_epoch_details(self, epoch, logs=None):
         if StopTrainingCallback.training_stopped:
-            print("Inside save_epoch details. gonna empty")
-            self.redis_conn.set('training_progress', '{}')
+            print("About to save epoch details. Training has stopped.")
             return
 
         print("saving epoch details")
@@ -60,7 +59,6 @@ class DigitModelTrainer:
         # Reset the flag in stopTrainingCallback
         StopTrainingCallback.training_stopped = False  # Reset the flag
         # Empty training_progress
-        self.redis_conn.set('training_progress', '{}')
 
         num_training_images = self.X_train.shape[0]
         num_testing_images = self.X_test.shape[0]
