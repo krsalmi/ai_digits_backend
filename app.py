@@ -27,9 +27,9 @@ global_model = None
 
 #Connect to an instance of Redis
 
-#redis_conn = redis.StrictRedis.from_url(REDIS_URL)
+redis_conn = redis.StrictRedis.from_url(REDIS_URL)
 
-redis_conn = redis.StrictRedis(host='localhost', port=6379, db=0)
+#redis_conn = redis.StrictRedis(host='localhost', port=6379, db=0)
 
 
 redis_conn.set('training_progress', '{}')
