@@ -10,8 +10,8 @@ from PIL import Image
 import numpy as np
 from digit_trainer import DigitModelTrainer
 
-#FRONTEND_URL = os.getenv('FRONTEND_URL')
-FRONTEND_URL = "http://localhost:3000"
+FRONTEND_URL = os.getenv('FRONTEND_URL')
+#FRONTEND_URL = "http://localhost:3000"
 
 
 

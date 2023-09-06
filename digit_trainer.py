@@ -37,8 +37,8 @@ class DigitModelTrainer:
 
     def __init__(self):
         # Connect to Redis instance
-        #self.redis_conn = redis.StrictRedis.from_url(self.REDIS_URL)
-        self.redis_conn = redis.StrictRedis(host='localhost', port=6379, db=0)
+        self.redis_conn = redis.StrictRedis.from_url(self.REDIS_URL)
+        #self.redis_conn = redis.StrictRedis(host='localhost', port=6379, db=0)
 
         self.model = None
 
