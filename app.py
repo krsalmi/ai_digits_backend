@@ -10,7 +10,11 @@ from PIL import Image
 import numpy as np
 from digit_trainer import DigitModelTrainer
 
-FRONTEND_URL = os.getenv('FRONTEND_URL')
+#FRONTEND_URL = os.getenv('FRONTEND_URL')
+FRONTEND_URL = "http://localhost:3000"
+
+
+
 MODEL_FILE = "ai_digits_model.h5"
 MODEL_SCRIPT = "ai_digits.py"
 CUR_FOLDER = "."
@@ -23,7 +27,11 @@ global_model = None
 
 #Connect to an instance of Redis
 
-redis_conn = redis.StrictRedis.from_url(REDIS_URL)
+#redis_conn = redis.StrictRedis.from_url(REDIS_URL)
+
+redis_conn = redis.StrictRedis(host='localhost', port=6379, db=0)
+
+
 redis_conn.set('training_progress', '{}')
 redis_conn.set('model_status', MODEL_CREATION_STATUS[0])
 redis_conn.set('model_accuracy', 0)
