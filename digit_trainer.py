@@ -170,7 +170,7 @@ class DigitModelTrainer:
             # Callback which will run 'save_epoch_detail' on each epoch end
             epoch_callback = keras.callbacks.LambdaCallback(on_epoch_end=self.save_epoch_details)
 
-            self.model.fit(self.X_train, self.y_train, epochs=EPOCH_NUM, batch_size=batch_size, callbacks=[epoch_callback, stop_training_callback])
+            self.model.fit(self.X_train, self.y_train, epochs=self.EPOCH_NUM, batch_size=batch_size, callbacks=[epoch_callback, stop_training_callback])
 
             # Evaluate neural network performance
             _, accuracy = self.model.evaluate(self.X_test,  self.y_test, verbose=2, batch_size=batch_size)
