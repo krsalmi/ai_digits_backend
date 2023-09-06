@@ -9,39 +9,38 @@ from io import BytesIO
 from PIL import Image
 import numpy as np
 from digit_trainer import DigitModelTrainer
+from config import Dev, Prod
 
-FRONTEND_URL = os.getenv('FRONTEND_URL')
-#FRONTEND_URL = "http://localhost:3000"
-
-
-
-MODEL_FILE = "ai_digits_model.h5"
-MODEL_SCRIPT = "ai_digits.py"
-CUR_FOLDER = "."
-MODEL_CREATION_STATUS = ["not_started", "in_progress", "completed", "interrupted"]
-REDIS_URL = os.getenv('REDIS_URL')
 
 train_model_lock = threading.Lock() #global variable to lock the thread that is training the model, so multiple similar processes won't run at the same time
 stop_training_event = threading.Event() # Event that will signal the training process to stop
 global_model = None
 
-#Connect to an instance of Redis
-
-redis_conn = redis.StrictRedis.from_url(REDIS_URL)
-
-#redis_conn = redis.StrictRedis(host='localhost', port=6379, db=0)
-
-
-redis_conn.set('training_progress', '{}')
-redis_conn.set('model_status', MODEL_CREATION_STATUS[0])
-redis_conn.set('model_accuracy', 0)
-
 
 app = Flask(__name__)
-CORS(app, origins=[FRONTEND_URL])
+
+# Retrieve environment variable
+env = os.getenv('FLASK_ENV', 'development')
+
+if env == 'development':
+    app.config.from_object(Dev)
+else:
+    app.config.from_object(Prod)
+
+# Set cors policy
+CORS(app, origins=[app.config['FRONTEND_URL']])
+
+#Connect to an instance of Redis
+if app.config['REDIS_URL']: # For prod environment
+    redis_conn = redis.StrictRedis.from_url(app.config['REDIS_URL'])
+else:
+    redis_conn = redis.StrictRedis(host='localhost', port=6379, db=0)
+redis_conn.set('training_progress', '{}')
+redis_conn.set('model_status', app.config['MODEL_CREATION_STATUS'][0])
+redis_conn.set('model_accuracy', 0)
 
 # Initialize the model trainer
-trainer = DigitModelTrainer()
+trainer = DigitModelTrainer(env=env)
 # Load model
 trainer.load_model()
 #Load dataset upon starting, just in case it is needed
@@ -53,7 +52,7 @@ def home():
 
 @app.route('/api/drawing/', methods=['POST'])
 def send_drawing():
-    if not os.path.isfile(os.path.join(CUR_FOLDER, MODEL_FILE)):
+    if not os.path.isfile(os.path.join(app.config['CUR_FOLDER'], app.config['MODEL_FILE'])):
         return jsonify({'message': 'Model file does not exist. Please create the model first.'}), 404
     try:
         drawing = request.json['drawing']
@@ -94,7 +93,7 @@ def retrain_model():
     # Start the model creation in a separate thread, so response can be sent immediately
     thread = threading.Thread(target=create_model_file)
     thread.start()
-    redis_conn.set('model_status', MODEL_CREATION_STATUS[1])
+    redis_conn.set('model_status', app.config['MODEL_CREATION_STATUS'][1])
     return jsonify({'message': 'Model creation started'}), 202 #202 Accepted status code is used to indicate that a request \
                                                     #has been accepted for processing, but the processing has not yet been completed
 
@@ -103,7 +102,7 @@ def stop_training():
     global stop_training_event
     # Check if training is in progress
     current_status = redis_conn.get('model_status').decode("utf-8")
-    if current_status != MODEL_CREATION_STATUS[1]: # If not "in_progress"
+    if current_status != app.config['MODEL_CREATION_STATUS'][1]: # If not "in_progress"
         return jsonify({'message': 'Training not in progress.'})
     
     print("Gonna stop training...")
@@ -139,9 +138,9 @@ def create_model_file():
         _, accuracy = trainer.build_model(stop_training_event)
         redis_conn.set('model_accuracy', accuracy)
         if stop_training_event.is_set():
-            redis_conn.set('model_status', MODEL_CREATION_STATUS[3])
+            redis_conn.set('model_status', app.config['MODEL_CREATION_STATUS'][3])
         else:
-            redis_conn.set('model_status', MODEL_CREATION_STATUS[2])
+            redis_conn.set('model_status', app.config['MODEL_CREATION_STATUS'][2])
             # Load new model into memory after a successfull creation
             trainer.load_model()
     finally:

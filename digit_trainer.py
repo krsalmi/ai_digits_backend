@@ -7,6 +7,8 @@ import logging
 import psutil
 import datetime
 import time
+from config import Dev, Prod
+
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -30,21 +32,31 @@ class DigitModelTrainer:
     IMG_HEIGHT = 28
     IMG_WIDTH = 28
     CHANNEL_DIMENSION = 1
-    MODEL_FILE = "ai_digits_model.h5"
     REDIS_URL = os.getenv('REDIS_URL')
-    EPOCH_NUM = 7
+    EPOCH_NUM = 6
+    BATCH_SIZE = 128
     
 
-    def __init__(self):
-        # Connect to Redis instance
-        self.redis_conn = redis.StrictRedis.from_url(self.REDIS_URL)
-        #self.redis_conn = redis.StrictRedis(host='localhost', port=6379, db=0)
-
+    def __init__(self, env='development'):
+        self.load_config(env)
+        self.initialize_redis()
         self.model = None
 
+    def load_config(self, env):
+        if env == 'development':
+            self.config = Dev()
+        else:
+            self.config = Prod()
+
+    def initialize_redis(self):
+        if self.config.REDIS_URL:
+            self.redis_conn = redis.StrictRedis.from_url(self.config.REDIS_URL)
+        else:
+            self.redis_conn = redis.StrictRedis(host=self.config.REDIS_URL, port=6379, db=0)
+
     def load_model(self):
-        if os.path.isfile(self.MODEL_FILE):
-            self.model = keras.models.load_model(self.MODEL_FILE)
+        if os.path.isfile(self.config.MODEL_FILE):
+            self.model = keras.models.load_model(self.config.MODEL_FILE)
         else:
             print("Model file does not exist. Please create the model first.")
 
@@ -85,7 +97,7 @@ class DigitModelTrainer:
 
         self.prepare_data_for_model()
         self.initialize_model()
-        model, accuracy = self.train_model(stop_training_event, batch_size=64)
+        model, accuracy = self.train_model(stop_training_event, batch_size=self.BATCH_SIZE)
 
 
         end_time = time.time()
@@ -125,7 +137,7 @@ class DigitModelTrainer:
             self.model = keras.models.Sequential([
                 keras.layers.Conv2D(32, kernel_size=(5, 5), activation='relu', input_shape=(28, 28, 1)),
                 keras.layers.MaxPooling2D(pool_size=(2, 2)),
-                keras.layers.Conv2D(64, kernel_size=(5, 5), activation='relu'),
+                keras.layers.Conv2D(64, kernel_size=(5, 5), activation='relu', input_shape=(28, 28, 1)),
                 keras.layers.MaxPooling2D(pool_size=(2, 2)),
                 keras.layers.Flatten(),
                 keras.layers.Dense(128, activation='relu'),
@@ -175,7 +187,7 @@ class DigitModelTrainer:
             # Evaluate neural network performance
             _, accuracy = self.model.evaluate(self.X_test,  self.y_test, verbose=2, batch_size=batch_size)
 
-            self.model.save(self.MODEL_FILE)
+            self.model.save(self.config.MODEL_FILE)
 
             logging.info(f"Model trained successfully at {datetime.datetime.now()}")
             logging.info(f"Memory usage after model training: {psutil.virtual_memory().percent}%")
