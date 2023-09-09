@@ -11,7 +11,7 @@ from config import Dev, Prod
 
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
+EPOCH_NUM = 6
 
 class StopTrainingCallback(keras.callbacks.Callback):
     training_stopped = False
@@ -22,9 +22,45 @@ class StopTrainingCallback(keras.callbacks.Callback):
 
     def on_batch_end(self, batch, logs=None):
         if self.stop_event.is_set():
-            print("Inside StopTrainingCallback, stop was received")
             self.model.stop_training = True
             StopTrainingCallback.training_stopped = True
+
+
+
+class ProgressCallback(keras.callbacks.Callback):
+    def __init__(self, redis_conn, batch_frequency=20):
+        super().__init__()
+        self.redis_conn = redis_conn
+        self.batch_frequency = batch_frequency
+        self.batch_count = 0
+        self.latest_progress = {'max_epochs': EPOCH_NUM}
+
+    def update_redis(self):
+        self.redis_conn.set('training_progress', json.dumps(self.latest_progress))
+
+    def on_batch_end(self, batch, logs=None):
+        # Check if StopTrainingCallback flag is set, and if so, skip progress update.
+        if StopTrainingCallback.training_stopped:
+            return
+
+        self.batch_count += 1
+        if self.batch_count % self.batch_frequency == 0:
+            self.latest_progress['percentage'] = self.batch_count / self.params['steps'] * 100
+            self.update_redis()
+
+    def on_epoch_begin(self, epoch, logs=None):
+        self.batch_count = 0
+
+    def on_epoch_end(self, epoch, logs=None):
+        # Check if StopTrainingCallback flag is set, and if so, skip progress update.
+        if StopTrainingCallback.training_stopped:
+            return
+        
+        accuracy = logs.get('accuracy')
+        self.latest_progress['accuracy'] = "{:.2f}".format(accuracy * 100)
+        self.latest_progress['epoch'] = epoch + 1
+        self.update_redis()
+
 
 
 class DigitModelTrainer:
@@ -33,7 +69,6 @@ class DigitModelTrainer:
     IMG_WIDTH = 28
     CHANNEL_DIMENSION = 1
     REDIS_URL = os.getenv('REDIS_URL')
-    EPOCH_NUM = 6
     BATCH_SIZE = 128
     
 
@@ -69,28 +104,15 @@ class DigitModelTrainer:
             raise e
 
 
-    def save_epoch_details(self, epoch, logs=None):
-        logging.info(f"Saving details for epoch {epoch}.")
-
-        if StopTrainingCallback.training_stopped:
-            print("About to save epoch details. Training has stopped.")
-            return
-
-        print("saving epoch details")
-        logs = logs or {}
-        updated_progress = {
-            'accuracy': logs.get('accuracy'),
-            'epoch': epoch + 1
-        }
-        self.redis_conn.set('training_progress', json.dumps(updated_progress))
-        logging.info(f"Details saved for epoch {epoch}.")
-
     def build_model(self, stop_training_event):
         logging.info("Starting to build the model.")
         logging.info(f"Current memory usage: {psutil.virtual_memory().percent}%")
         logging.info(f"Current CPU usage: {psutil.cpu_percent()}%")
 
         start_time = time.time()
+
+        #Load dataset upon starting, just in case it is needed
+        self.load_dataset()
 
         # Reset the flag in stopTrainingCallback
         StopTrainingCallback.training_stopped = False  # Reset the flag
@@ -125,6 +147,7 @@ class DigitModelTrainer:
             logging.info(f"Data prepared successfully at {datetime.datetime.now()}")
             logging.info(f"Memory usage after data preparation: {psutil.virtual_memory().percent}%")
             logging.info(f"CPU usage after data preparation: {psutil.cpu_percent()}%")
+            
 
         except Exception as e:
             logging.error(f"Error occured while preparing the data for the model at {datetime.datetime.now()}: {e}")
@@ -179,10 +202,10 @@ class DigitModelTrainer:
             # New instance of callback class, which will check the signal (always when a batch ends)
             stop_training_callback = StopTrainingCallback(stop_training_event)
 
-            # Callback which will run 'save_epoch_detail' on each epoch end
-            epoch_callback = keras.callbacks.LambdaCallback(on_epoch_end=self.save_epoch_details)
+            # Callback that saves progress info when batches and epochs end
+            progress_callback = ProgressCallback(self.redis_conn)
 
-            self.model.fit(self.X_train, self.y_train, epochs=self.EPOCH_NUM, batch_size=batch_size, callbacks=[epoch_callback, stop_training_callback])
+            self.model.fit(self.X_train, self.y_train, epochs=EPOCH_NUM, batch_size=batch_size, callbacks=[progress_callback, stop_training_callback])
 
             # Evaluate neural network performance
             _, accuracy = self.model.evaluate(self.X_test,  self.y_test, verbose=2, batch_size=batch_size)
@@ -196,6 +219,7 @@ class DigitModelTrainer:
             return self.model, accuracy
         except Exception as e:
             logging.error(f"Error occured while training the model at {datetime.datetime.now()}: {e}")
+            return None, None
     
     
     # Analyze drawing and predict digit
