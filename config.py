@@ -4,8 +4,14 @@ class Config:
     MODEL_FILE = "ai_digits_model.h5"
     MODEL_SCRIPT = "ai_digits.py"
     CUR_FOLDER = "."
-    MODEL_CREATION_STATUS = ["not_started", "in_progress", "completed", "interrupted"]
     MODEL_FILE = "ai_digits_model.h5"
+    MODEL_CREATION_STATUS = {
+        'NOT_STARTED': "not_started",
+        'IN_PROGRESS': "in_progress",
+        'COMPLETED': "completed",
+        'INTERRUPTED': "interrupted",
+        'ERROR': "error"
+    }
 
 class Dev(Config):
     DEBUG = True
