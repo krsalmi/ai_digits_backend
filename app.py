@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, stream_with_context, Response
 from flask_cors import CORS
 import os
 import threading
@@ -10,11 +10,12 @@ from PIL import Image
 import numpy as np
 from digit_trainer import DigitModelTrainer
 from config import Dev, Prod
+import time
+
 
 
 train_model_lock = threading.Lock() #global variable to lock the thread that is training the model, so multiple similar processes won't run at the same time
 stop_training_event = threading.Event() # Event that will signal the training process to stop
-global_model = None
 
 
 app = Flask(__name__)
@@ -36,15 +37,14 @@ if app.config['REDIS_URL']: # For prod environment
 else:
     redis_conn = redis.StrictRedis(host='localhost', port=6379, db=0)
 redis_conn.set('training_progress', '{}')
-redis_conn.set('model_status', app.config['MODEL_CREATION_STATUS'][0])
+redis_conn.set('model_status', app.config['MODEL_CREATION_STATUS']['NOT_STARTED'])
 redis_conn.set('model_accuracy', 0)
 
 # Initialize the model trainer
 trainer = DigitModelTrainer(env=env)
 # Load model
 trainer.load_model()
-#Load dataset upon starting, just in case it is needed
-trainer.load_dataset()
+
 
 @app.route("/")
 def home():
@@ -93,7 +93,7 @@ def retrain_model():
     # Start the model creation in a separate thread, so response can be sent immediately
     thread = threading.Thread(target=create_model_file)
     thread.start()
-    redis_conn.set('model_status', app.config['MODEL_CREATION_STATUS'][1])
+    redis_conn.set('model_status', app.config['MODEL_CREATION_STATUS']['IN_PROGRESS'])
     return jsonify({'message': 'Model creation started'}), 202 #202 Accepted status code is used to indicate that a request \
                                                     #has been accepted for processing, but the processing has not yet been completed
 
@@ -102,7 +102,7 @@ def stop_training():
     global stop_training_event
     # Check if training is in progress
     current_status = redis_conn.get('model_status').decode("utf-8")
-    if current_status != app.config['MODEL_CREATION_STATUS'][1]: # If not "in_progress"
+    if current_status != app.config['MODEL_CREATION_STATUS']['IN_PROGRESS']: # If not "in_progress"
         return jsonify({'message': 'Training not in progress.'})
     
     print("Gonna stop training...")
@@ -123,6 +123,33 @@ def get_training_progress():
         return jsonify(training_progress)
     else:
         return jsonify({'message': 'No training progress available'})
+    
+@app.route('/api/progress/')
+def progress():
+    def generate():
+        while True:
+            # Getting progress from Redis
+            tp_value = redis_conn.get('training_progress')
+            model_status = redis_conn.get('model_status').decode("utf-8")
+            if tp_value and model_status == app.config['MODEL_CREATION_STATUS']['IN_PROGRESS']:
+                training_progress = json.loads(tp_value.decode("utf-8"))
+                print("Sending SSE data")
+                yield f"data: {json.dumps(training_progress)}\n\n"
+            time.sleep(1)  # update every second
+
+            # Send signal to close connection if training has finished or been interrupted
+            if model_status in [app.config['MODEL_CREATION_STATUS']['COMPLETED'], app.config['MODEL_CREATION_STATUS']['INTERRUPTED']]:
+                print("Closing SSE connection")
+                message = {
+                    "event": "close",
+                    "reason": model_status,
+                    "other_data": "You can add more data here if needed."
+                }
+                yield f"data: {json.dumps(message)}\n\n"
+                break  # Close connection
+
+    return Response(stream_with_context(generate()), content_type='text/event-stream')
+
 
 @app.route('/api/model_accuracy/', methods=['GET'])
 def get_model_accuracy():
@@ -136,13 +163,17 @@ def get_model_accuracy():
 def create_model_file():
     try:
         _, accuracy = trainer.build_model(stop_training_event)
-        redis_conn.set('model_accuracy', accuracy)
-        if stop_training_event.is_set():
-            redis_conn.set('model_status', app.config['MODEL_CREATION_STATUS'][3])
+        # If None is returned, training failed
+        if accuracy == None:
+            redis_conn.set('model_status', app.config['MODEL_CREATION_STATUS']['ERROR'])
         else:
-            redis_conn.set('model_status', app.config['MODEL_CREATION_STATUS'][2])
-            # Load new model into memory after a successfull creation
-            trainer.load_model()
+            redis_conn.set('model_accuracy', accuracy)
+            if stop_training_event.is_set():
+                redis_conn.set('model_status', app.config['MODEL_CREATION_STATUS']['INTERRUPTED'])
+            else:
+                redis_conn.set('model_status', app.config['MODEL_CREATION_STATUS']['COMPLETED'])
+                # Load new model into memory after a successfull creation
+                trainer.load_model()
     finally:
         train_model_lock.release()
         redis_conn.set('training_progress', '{}')  # Reset training progress
