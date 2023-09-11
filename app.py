@@ -80,7 +80,7 @@ def preprocess_drawing(drawing):
     image_arr = np.array(drawing) / 255.0  # Convert to numpy array and normalize
     return image_arr
     
-@app.route('/api/retrain_model/', methods=['GET'])
+@app.route('/api/retrain_model/', methods=['POST'])
 def retrain_model():
     global train_model_lock, stop_training_event
 
@@ -97,7 +97,7 @@ def retrain_model():
     return jsonify({'message': 'Model creation started'}), 202 #202 Accepted status code is used to indicate that a request \
                                                     #has been accepted for processing, but the processing has not yet been completed
 
-@app.route('/api/stop_training/', methods=['GET'])
+@app.route('/api/stop_training/', methods=['POST'])
 def stop_training():
     global stop_training_event
     # Check if training is in progress
