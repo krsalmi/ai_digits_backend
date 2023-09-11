@@ -50,6 +50,8 @@ class ProgressCallback(keras.callbacks.Callback):
 
     def on_epoch_begin(self, epoch, logs=None):
         self.batch_count = 0
+        self.latest_progress['percentage'] = 0
+        self.update_redis()
 
     def on_epoch_end(self, epoch, logs=None):
         # Check if StopTrainingCallback flag is set, and if so, skip progress update.
