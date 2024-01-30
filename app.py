@@ -1,3 +1,22 @@
+"""
+This Flask application provides a web service for a digit recognition system 
+using a convolutional neural network (CNN). 
+The service allows users to train the model, predict digits from images, 
+and monitor the training progress and model status.
+The application uses Flask for the web framework, Redis for progress tracking
+and status updates, and several other libraries such as NumPy and PIL for 
+image processing and model handling.
+
+Endpoints:
+- `/`: Health check endpoint returning the status of the service.
+- `/api/drawing/`: Endpoint to predict the digit from a given drawing.
+- `/api/retrain_model/`: Initiates the retraining of the model.
+- `/api/stop_training/`: Stops the ongoing model training process.
+- `/api/check_model_status/`: Checks and returns the current status of the model.
+- `/api/training_progress/`: Provides the current progress of the ongoing model training.
+- `/api/model_accuracy/`: Returns the accuracy of the trained model.
+"""
+
 from flask import Flask, request, jsonify, stream_with_context, Response
 from flask_cors import CORS
 import os
@@ -52,6 +71,16 @@ def home():
 
 @app.route('/api/drawing/', methods=['POST'])
 def send_drawing():
+    """
+    Sends user drawing to model for digit prediction.
+    Decodes the base64-encoded drawing data, preprocesses it into the 
+    expected format for the model, runs prediction, and returns the 
+    prediction result and confidence score.
+
+    Returns:
+        JSON response with prediction and confidence score if successful.
+        Error responses if drawing can't be processed or model not available.
+    """
     if not os.path.isfile(os.path.join(app.config['CUR_FOLDER'], app.config['MODEL_FILE'])):
         return jsonify({'message': 'Model file does not exist. Please create the model first.'}), 404
     try:
@@ -67,8 +96,20 @@ def send_drawing():
         return jsonify({'error': 'An error occurred'}), 500
     
 
+
 def decode_drawing(image_data):
-    # Remove preceding 'data:image/png;base64,', decode and convert to PIL image obj
+    """
+    Decodes the base64-encoded drawing data from the client.
+
+    Removes the 'data:image/png;base64,' prefix, base64-decodes the data, 
+    and converts it to a PIL Image object that can be used for prediction.
+
+    Args:
+        image_data (str): The base64-encoded PNG drawing data.
+
+    Returns:
+        Image: The decoded PNG image as a PIL Image object.
+    """
     base64_data = image_data.split(',')[1]
     byte_data = base64.b64decode(base64_data)
     drawing = Image.open(BytesIO(byte_data))
@@ -76,36 +117,67 @@ def decode_drawing(image_data):
 
  # Resize and convert to grayscale, convert to numpy array, normalize
 def preprocess_drawing(drawing):
+    """
+    Preprocesses the decoded PNG drawing into the expected format for the model.
+
+    Resizes, converts to grayscale, normalizes the pixel values, and 
+    converts the image to a numpy array.
+
+    Args:
+        drawing (Image): The decoded PNG drawing 
+
+    Returns:
+        numpy.ndarray: The preprocessed grayscale drawing as a 28x28 numpy array
+                        with values between 0-1.
+    """
     drawing = drawing.resize((28, 28)).convert('L') 
     image_arr = np.array(drawing) / 255.0  # Convert to numpy array and normalize
     return image_arr
     
 @app.route('/api/retrain_model/', methods=['POST'])
 def retrain_model():
+    """
+    Trains a new digit recognition model.
+
+    Acquires a lock to ensure only one model training can happen at a time.
+    Starts model training in a separate thread and returns an accepted response 
+    immediately to allow the client to poll for status updates.
+
+    Returns:
+        202 if model training successfully started.
+        409 if model training is already in progress, this will avoid a race condition
+    """
     global train_model_lock, stop_training_event
 
-    # Attempt to acquire lock without blocking. If another thread already has
-    # the lock (someone else is training the model at the same time), this will return False immediately, avoiding a race condition
     if not train_model_lock.acquire(blocking=False):
         return jsonify({'message': 'Training is already in progress. Please try again later.'}), 409  # 409 Conflict
     
     stop_training_event.clear()
     # Start the model creation in a separate thread, so response can be sent immediately
-    thread = threading.Thread(target=create_model_file)
+    thread = threading.Thread(target=build_model)
     thread.start()
     redis_conn.set('model_status', app.config['MODEL_CREATION_STATUS']['IN_PROGRESS'])
-    return jsonify({'message': 'Model creation started'}), 202 #202 Accepted status code is used to indicate that a request \
-                                                    #has been accepted for processing, but the processing has not yet been completed
+    return jsonify({'message': 'Model creation started'}), 202
 
 @app.route('/api/stop_training/', methods=['POST'])
 def stop_training():
+    """
+    Stops an in-progress model training by setting a stop signal.
+
+    Checks if a model training is currently in progress by checking
+    the status in Redis. If training is in progress, it sets the 
+    stop_training_event to signal the training thread to stop.
+
+    Returns:
+        200 if stop signal was successfully set.
+        409 if training not in progress.
+    """
     global stop_training_event
     # Check if training is in progress
     current_status = redis_conn.get('model_status').decode("utf-8")
     if current_status != app.config['MODEL_CREATION_STATUS']['IN_PROGRESS']: # If not "in_progress"
         return jsonify({'message': 'Training not in progress.'})
     
-    print("Gonna stop training...")
     stop_training_event.set()
     return jsonify({'message': 'Stop signal sent.'})
 
@@ -117,6 +189,9 @@ def check_model_status():
 
 @app.route('/api/training_progress/', methods=['GET'])
 def get_training_progress():
+    """
+    Gets the current training progress from Redis if available.
+    """
     tp_value = redis_conn.get('training_progress')
     if tp_value:
         training_progress = json.loads(tp_value.decode("utf-8"))
@@ -126,6 +201,11 @@ def get_training_progress():
     
 @app.route('/api/progress/')
 def progress():
+    """
+    Sends Server-Sent Events with model training progress updates.
+    Opens a streaming response and yields training progress JSON messages 
+    from Redis until training completes or is interrupted.
+    """
     def generate():
         while True:
             # Getting progress from Redis
@@ -160,7 +240,14 @@ def get_model_accuracy():
         model_accuracy = None
     return jsonify({'accuracy': model_accuracy})
     
-def create_model_file():
+"""
+Builds the machine learning model by calling the Trainer class.
+
+Handles model training, storing training results in Redis.
+Sets the appropriate status in Redis to indicate if training completed 
+successfully, was interrupted, or failed with an error.
+"""
+def build_model():
     try:
         _, accuracy = trainer.build_model(stop_training_event)
         # If None is returned, training failed
@@ -172,8 +259,8 @@ def create_model_file():
                 redis_conn.set('model_status', app.config['MODEL_CREATION_STATUS']['INTERRUPTED'])
             else:
                 redis_conn.set('model_status', app.config['MODEL_CREATION_STATUS']['COMPLETED'])
-                # Load new model into memory after a successfull creation
-                trainer.load_model()
+                # Uncomment, if you want to load new model into memory
+                #trainer.load_model()
     finally:
         train_model_lock.release()
         redis_conn.set('training_progress', '{}')  # Reset training progress

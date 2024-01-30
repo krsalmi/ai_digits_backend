@@ -13,6 +13,12 @@ from config import Dev, Prod
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 EPOCH_NUM = 6
 
+"""
+Stops model training when a stop event is triggered. 
+
+Sets a class property `training_stopped` to True when the stop event is triggered, 
+allowing other callbacks to check if training was stopped.
+"""
 class StopTrainingCallback(keras.callbacks.Callback):
     training_stopped = False
 
@@ -27,6 +33,14 @@ class StopTrainingCallback(keras.callbacks.Callback):
 
 
 
+"""
+Callback that updates Redis with training progress after each batch and epoch.
+
+Tracks and updates the latest training progress in a Redis hash. 
+Progress contains the current epoch, batch percentage 
+complete, and latest accuracy. Updates are made after each batch and epoch 
+during model training.
+"""
 class ProgressCallback(keras.callbacks.Callback):
     def __init__(self, redis_conn, batch_frequency=20):
         super().__init__()
@@ -64,7 +78,14 @@ class ProgressCallback(keras.callbacks.Callback):
         self.update_redis()
 
 
+"""
+A class for training a digit recognition model using a convolutional neural network (CNN).
 
+This class is responsible for initializing and training a neural network model for
+recognizing handwritten digits. It utilizes the MNIST dataset for training and testing.
+The class provides functionalities to load and preprocess the dataset, build, train, and 
+evaluate the CNN model. It also includes methods to predict digits from input images.
+"""
 class DigitModelTrainer:
     NUM_CLASSES = 10
     IMG_HEIGHT = 28
@@ -105,7 +126,14 @@ class DigitModelTrainer:
             logging.error(f"An error occurred: {e}")
             raise e
 
-
+    """
+    Builds the CNN model for digit recognition, trains it, and returns the trained model and its accuracy.
+    
+    Loads the MNIST dataset, preprocesses the data, initializes a CNN model architecture, 
+    trains the model while allowing external stopping via an event, and returns the trained model and its accuracy.
+    
+    Handles logging training progress, memory usage, durations etc. 
+    """
     def build_model(self, stop_training_event):
         logging.info("Starting to build the model.")
         logging.info(f"Current memory usage: {psutil.virtual_memory().percent}%")
@@ -130,6 +158,14 @@ class DigitModelTrainer:
         logging.info(f"Training over, took: {elapsed_time:.2f} seconds.")
         return model, accuracy
         
+    """
+    Prepares the MNIST image data for training and testing the CNN model. 
+    
+    Reshapes the loaded MNIST image data to add a channel dimension, 
+    normalizes the pixel values, and one-hot encodes the labels.
+    
+    Handles logging of memory usage and durations.
+    """
     def prepare_data_for_model(self):
         logging.info(f"Preparing data at {datetime.datetime.now()}")
         try:
@@ -155,6 +191,16 @@ class DigitModelTrainer:
             logging.error(f"Error occured while preparing the data for the model at {datetime.datetime.now()}: {e}")
             raise e
     
+    """
+    Initializes the convolutional neural network model for digit classification.
+    
+    Creates a sequential CNN model with convolutional, pooling, flatten, dense and 
+    dropout layers. Configures the Adam optimizer with an exponential decay learning 
+    rate schedule. Compiles the model with categorical cross entropy loss and accuracy 
+    metric.
+    
+    Handles logging of memory and CPU usage after model initialization.
+    """
     def initialize_model(self):
         logging.info(f"Initializing model at {datetime.datetime.now()}")
         # Create a convolutional neural network
@@ -198,6 +244,15 @@ class DigitModelTrainer:
             logging.error(f"Error occured while initializing the model at {datetime.datetime.now()}: {e}")
             raise e
         
+    """
+    Trains the CNN model on the training data.
+    
+    Fits the model on the training data for a number of epochs, with a batch size. 
+    Uses a callback to check if training should stop early. Saves training progress info to Redis.
+    Evaluates the model on the test data after training.
+    
+    Returns a tuple with the trained model and accuracy on the test set.
+    """
     def train_model(self, stop_training_event, batch_size=32):
         logging.info(f"Starting model training at {datetime.datetime.now()}")
         try:
@@ -212,7 +267,8 @@ class DigitModelTrainer:
             # Evaluate neural network performance
             _, accuracy = self.model.evaluate(self.X_test,  self.y_test, verbose=2, batch_size=batch_size)
 
-            self.model.save(self.config.MODEL_FILE)
+            # Uncomment if you want to save new model into file
+            #self.model.save(self.config.MODEL_FILE)
 
             logging.info(f"Model trained successfully at {datetime.datetime.now()}")
             logging.info(f"Memory usage after model training: {psutil.virtual_memory().percent}%")
@@ -226,6 +282,16 @@ class DigitModelTrainer:
     
     # Analyze drawing and predict digit
     # returns the index of the maximum value in the provided array, which has probabilities for each digit
+    """
+    Analyze the drawing and predict the digit.
+    
+    Takes a 28x28 pixel image as a numpy array, reshapes it for the model input shape, runs inference, 
+    and returns the predicted digit (0-9) with the confidence percentage.
+    
+    Returns:
+        predicted_digit (int): The predicted digit (0-9).
+        confidence_percentage (float): The confidence percentage that the predicted digit is correct.
+    """
     def predict_digit(self, image_arr):
         if self.model is None:
             return (None, None)
