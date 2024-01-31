@@ -7,7 +7,7 @@ The code for the frontend can be viewed [here](https://github.com/krsalmi/ai_dig
 
 ## Model Architecture and Training Process
 The `DigitModelTrainer` class handles the process of building and training a Convolutional Neural Network (CNN) for digit recognition using the MNIST dataset.  
-![img](https://storage.googleapis.com/tfds-data/visualization/fig/mnist-3.0.1.png)
+![MNIST example image](imgs_for_readme/mnist-3.0.1.png)
 Key steps involved:
 
 ### Dataset Preparation
