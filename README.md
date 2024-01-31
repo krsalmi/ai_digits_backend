@@ -2,7 +2,7 @@
 Backend for a web application, which uses machine learning to recognize handwritten digits. The server is a Flask app with Redis used for memory caching, the model used for digit recognition is a Convolutional Neural Network, built using TensorFlow's Keras library.
 Provides API endpoints for model retraining, digit prediction, progress tracking, and model status checking.
 Retrained models will not be saved into memory, but this can be turned on in build_model() if needed. You can check out the live site on
-[https://digitrecognition-ai.onrender.com](https://digitrecognition-ai.onrender.com), which is hosted on Render.
+[digitrecognition](https://digitrecognition-ai.onrender.com), which is hosted on Render.
 The code for the frontend can be viewed [here](https://github.com/krsalmi/ai_digits_frontend.git).
 
 ## Model Architecture and Training Process
