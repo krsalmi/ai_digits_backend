@@ -11,7 +11,7 @@ from config import Dev, Prod
 
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-EPOCH_NUM = 6
+EPOCH_NUM = 3
 
 """
 Stops model training when a stop event is triggered. 
