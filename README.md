@@ -4,7 +4,9 @@
 Backend for a web application, which uses machine learning to recognize handwritten digits. 
 Convolutional Neural Network (CNN) built using TensorFlow's Keras library. Flask app, Redis used for memory caching. 
 Provides API endpoints for model training, digit prediction, progress tracking, and model status checking.
-Retrained model will not be saved into memory, but this can be turned on in build_model() if needed.
+Retrained model will not be saved into memory, but this can be turned on in build_model() if needed. You can check out the live site on
+[https://digitrecognition-ai.onrender.com](https://digitrecognition-ai.onrender.com), which is hosted on Render.
+The code for the frontend can be viewed [here](https://github.com/krsalmi/ai_digits_frontend.git).
 
 ## Setup Instructions
 
@@ -44,12 +46,6 @@ Retrained model will not be saved into memory, but this can be turned on in buil
 - `GET /api/check_model_status/`: Checks the current status of the model.
 - `GET /api/training_progress/`: Gets the training progress.
 - `GET /api/model_accuracy/`: Retrieves the accuracy of the trained model.
-
-### Making Predictions
-To predict a digit, send a POST request to `/api/drawing/` with a base64 encoded image of the handwritten digit.
-
-### Training the Model
-The model can be trained by sending a POST request to `/api/retrain_model/`. Progress can be monitored via the `/api/training_progress/` endpoint.
 
 ## Components
 
