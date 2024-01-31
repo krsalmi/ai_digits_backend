@@ -6,8 +6,8 @@ Retrained models will not be saved into memory, but this can be turned on in bui
 The code for the frontend can be viewed [here](https://github.com/krsalmi/ai_digits_frontend.git).
 
 ## Model Architecture and Training Process
-The `DigitModelTrainer` class handles the process of building and training a Convolutional Neural Network (CNN) for digit recognition using the MNIST dataset.  
-![MNIST example image](imgs_for_readme/mnist-3.0.1.png | width=100)  
+The `DigitModelTrainer` class handles the process of building and training a Convolutional Neural Network (CNN) for digit recognition using the MNIST dataset.   
+<img src="imgs_for_readme/mnist-3.0.1.png" alt="MNIST example image" width="100" height="100">
 Example images from the MNIST dataset  
   
 Key steps involved:
