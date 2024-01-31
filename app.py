@@ -115,7 +115,6 @@ def decode_drawing(image_data):
     drawing = Image.open(BytesIO(byte_data))
     return drawing
 
- # Resize and convert to grayscale, convert to numpy array, normalize
 def preprocess_drawing(drawing):
     """
     Preprocesses the decoded PNG drawing into the expected format for the model.
@@ -207,26 +206,30 @@ def progress():
     from Redis until training completes or is interrupted.
     """
     def generate():
-        while True:
+        # Initial check for model status
+        model_status = redis_conn.get('model_status').decode("utf-8")
+
+        # Loop until training is not in progress
+        while model_status == app.config['MODEL_CREATION_STATUS']['IN_PROGRESS']:
             # Getting progress from Redis
             tp_value = redis_conn.get('training_progress')
-            model_status = redis_conn.get('model_status').decode("utf-8")
-            if tp_value and model_status == app.config['MODEL_CREATION_STATUS']['IN_PROGRESS']:
+            if tp_value:
                 training_progress = json.loads(tp_value.decode("utf-8"))
                 print("Sending SSE data")
                 yield f"data: {json.dumps(training_progress)}\n\n"
             time.sleep(1)  # update every second
 
-            # Send signal to close connection if training has finished or been interrupted
-            if model_status in [app.config['MODEL_CREATION_STATUS']['COMPLETED'], app.config['MODEL_CREATION_STATUS']['INTERRUPTED']]:
-                print("Closing SSE connection")
-                message = {
-                    "event": "close",
-                    "reason": model_status,
-                    "other_data": "You can add more data here if needed."
-                }
-                yield f"data: {json.dumps(message)}\n\n"
-                break  # Close connection
+            # Re-check model status at each iteration
+            model_status = redis_conn.get('model_status').decode("utf-8")
+
+        # Send signal to close connection if training has finished or been interrupted
+        print("Closing SSE connection")
+        message = {
+            "event": "close",
+            "reason": model_status,
+            "other_data": "You can add more data here if needed."
+        }
+        yield f"data: {json.dumps(message)}\n\n"
 
     return Response(stream_with_context(generate()), content_type='text/event-stream')
 
